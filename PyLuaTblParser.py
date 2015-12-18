@@ -327,7 +327,7 @@ class PyLuaTblParser:
             fp = open(f, 'r')
             if not fp:
                 raise MyParserException(u'Open file '+ f + u' failed\n')
-            file_str = fp.readall()
+            file_str = fp.read()
             self.load(file_str)
             fp.close()
         except MyParserException as e:
