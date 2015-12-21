@@ -12,10 +12,6 @@ B2 = 4
 b1 = 5
 S1 = 6
 
-
-class MyParserException(Exception):pass
-
-
 ERRORS = {
     'unexp_end_string': u'Unexpected end of string while parsing Lua string.',
     'unexp_end_table': u'Unexpected end of table while parsing Lua string.',
@@ -23,6 +19,8 @@ ERRORS = {
     'mfnumber_dec_point': u'Malformed number (no digits after decimal point).',
     'mfnumber_sci': u'Malformed number (bad scientific format).',
 }
+
+class MyParserException(Exception):pass
 
 class PyLuaTblParser:
     """ to parse lua table constructors
@@ -33,7 +31,7 @@ class PyLuaTblParser:
         self.at = 0
         self.len = 0
         self.depth = 0
-        self.result = None
+        self.result = {}
         self.newline = '\n'
         self.tab = '\t'
 
@@ -42,7 +40,9 @@ class PyLuaTblParser:
             return
         self.text = s
         self.removeComments()
-        self.at, self.ch, self.depth = 0, '', 0
+        self.at = 0
+        self.ch = ''
+        self.depth = 0
         self.len = len(self.text)
         self.take_char()
         self.result = self.parse()
@@ -74,6 +74,7 @@ class PyLuaTblParser:
                 elif state == M2:
                     if c == '\n':
                         state = S0
+                        backText += ' '
                         backText += c
                     elif c == '[':
                         state = B1
@@ -84,7 +85,7 @@ class PyLuaTblParser:
                         state = B2
                     else:
                         state = M2
-                elif state == B2:
+                elif state == B2: # block comment
                     if c == ']':
                         state = b1
                     else:
@@ -92,6 +93,7 @@ class PyLuaTblParser:
                 elif state == b1:
                     if c == ']':
                         state = S0
+                        backText += ' '
                     else:
                         state = B2
                 elif state == S1:
@@ -103,19 +105,29 @@ class PyLuaTblParser:
         self.text = backText
 
     def parse(self):
-        self.skip_white()
-        if not self.ch:
-            return
-        elif self.ch == '{':
-            return self.object()
-        elif self.ch == "[":
-            self.take_char()
-        elif self.ch in ['"',  "'"]:
-            return self.string(self.ch)
-        elif self.ch.isdigit() or self.ch == '-':
-            return self.number()
-        else:
-            return self.word()
+        try:
+            self.skip_white()
+            if not self.ch:
+                return
+            if self.ch == '{':
+                return self.object()
+            if self.ch == "[":
+                #if self.text[self.at] == '[':
+                self.take_char()
+                #     return self.string('[')
+                # elif self.text[self.at] == '=':
+                #     return self.string
+                # else:
+                #     self.take_char()
+            if self.ch in ['"',  "'", '=']:
+                return self.string(self.ch)
+            elif self.ch.isdigit() or self.ch == '-':
+                return self.number()
+            else:
+                return self.word()
+        except MyParserException as e:
+            print e
+            return 0
 
     def skip_white(self):
         while self.ch:
@@ -125,89 +137,74 @@ class PyLuaTblParser:
                 break
 
     def take_char(self):
-        if self.at >= self.len:
+        if self.at < self.len:
+            self.ch = self.text[self.at]
+            self.at += 1
+        else:
             self.ch = None
-            return None
-        self.ch = self.text[self.at]
-        self.at += 1
-        return True
 
     def object(self):
-        tbl = {}
-        lst = []
-        keyN = 0
+        """
+        an object is a dict or a list.
+        :return:
+        """
+        myDi = {}
+        myLi = []
         keyS = None
-        isDict = False
-        self.depth += 1
         self.take_char()
         self.skip_white()
-        if self.ch and self.ch == '}': #exit
-            self.depth -= 1
+        if self.ch and self.ch == '}': # exit, only when table is empty
             self.take_char()
-            return tbl
+            return myLi # so a list is proper rather than a dict
         else:
             while self.ch:
                 self.skip_white()
                 if self.ch == '{':
-                    res = self.object()
-                    # TODO:ADD THIS RESULT INTO TABLE OR LIST
+                    myLi.append(self.object())
                     continue
                 elif self.ch == '}':
-                    self.depth -= 1
                     self.take_char()
-                    if keyS is not None:# end with '}' without "'"
-                        lst.append(keyS) # must be a list item
-                    # if not numeric_keys and len([ key for key in o if type(key) in (str,  float,  bool,  tuple)]) == 0:
-                    #     ar = []
-                    #     for key in o:
-                    #        ar.insert(key, o[key])
-                    #     o = ar
-                    # return o #or here
-                    if len(tbl) == 0:
-                        return lst
-                    elif len(lst) == 0:
-                        return tbl
-                    else: # merge tbl
-                        tblTemp = {x+1:lst[x] for x in xrange(len(lst))}
-                        for k in tbl.keys():
-                            if k not in tblTemp.keys():
-                                tblTemp[k] = tbl[k]
-                        tbl = tblTemp
-                        return tbl
+                    if keyS is not None: # end with '}' without "'"
+                        myLi.append(keyS) # must be a list item
+                    if len(myDi) == 0: # if there is no A = B, myDi is empty, return list
+                        return myLi
+                    elif len(myLi) == 0: # else, return myDi.
+                        myDi = {k:myDi[k] for k in myDi.keys() if myDi[k] is not None} # remove those None value.
+                        return myDi
+                    else: # merge dict and lst into one tbl
+                        tblTemp = {x+1:myLi[x] for x in xrange(len(myLi))}
+                        for k in myDi.keys():
+                            if (k not in tblTemp.keys()) and (myDi[k] is not None):
+                                tblTemp[k] = myDi[k]
+                        myDi = {k:tblTemp[k] for k in tblTemp.keys() if tblTemp[k] is not None}
+                        return myDi
                 else: # not an object
                     if self.ch == ',':
                         self.take_char()
                         continue
                     else:
                         keyS = self.parse() # Now key is a string or a number
-                        #self.take_char()
+                        if self.ch == ']':
+                            self.take_char()
                     self.skip_white()
                     ch = self.ch
-                    if ch in ('=', ','):
-                        self.take_char()
+                    if ch in ('=', ',', '}'):
+                        if ch in ('=', ','):
+                            self.take_char()
                         self.skip_white()
                         if ch == '=':
                             isDict = True
-                            tbl[keyS] = self.parse()
-                        else:
-                            lst.append(keyS)
-                        keyS = None
+                            myDi[keyS] = self.parse()
+                    else:
+                        raise MyParserException
+                        # else: # '}', end this obj without ","
+                        #     myLi.append(keyS)
+                        # keyS = None
+
+                    # elif ch is not None and ch not in ['}']: # a word must be followed by = or ,
+                    #     print 'This: ' + ch
 
     def string(self, quote):
-        # s = ''
-        # start = self.ch
-        #
-        # if start in ['"',  "'"]:
-        #     while self.take_char():
-        #         if self.ch == quote:
-        #             self.take_char()
-        #             #if  self.ch == ']':
-        #             return s
-        #         if self.ch == '\\': # and start == end:
-        #             self.take_char()
-        #             if self.ch != end:
-        #                 s += '\\'
-        #         s += self.ch
         s = ''
         while self.take_char():
             if self.ch == quote:
@@ -218,6 +215,7 @@ class PyLuaTblParser:
                 if self.ch == quote:
                     s = s + '\\' + quote
             s += self.ch
+
 
     def number(self):
         def next_digit(err):
@@ -375,10 +373,33 @@ class PyLuaTblParser:
 
 if __name__ == '__main__':
     a1 = PyLuaTblParser()
-    s = '{array = {65,23,5,},dict = {mixed = {43,54.33,false,9,string = "value--asd",},--[[sd\n\nasd]]--\narray = {3,6,4,},string = "value",},}'
-    #s = '{mixed = {43,false,string = "value--asd",}}'
-    a1.load(s)
-    print a1.text
+    a2 = PyLuaTblParser()
+    a3 = PyLuaTblParser()
+
+    #test_str = '{array = {65,23,5,},dict = {mixed = {43,54.33,false,9,string = "value",},array = {3,6,4,},string = "value",},}'
+    with open('test.txt') as f:
+        test_str = f.read()
+
+    a1.load(test_str)
+    print 'a1.dict:'
     print a1.result
 
+    print 'a1.dump:'
     print a1.dump()
+
+    d1 = a1.dumpDict()
+    print 'a1.dumpDict:'
+    print d1
+
+    a2.loadDict(d1)
+    print 'loadDict(d1):'
+    print a2.result
+
+    a2.dumpLuaTable('f1.txt')
+    a3.loadLuaTable('f1.txt')
+    print 'a3.loadLuaTable:'
+    print a3.result
+
+    d3 = a3.dumpDict()
+    print 'a3.dumpDict():'
+    print d3
