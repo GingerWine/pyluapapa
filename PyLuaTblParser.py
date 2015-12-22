@@ -14,13 +14,10 @@ b1 = 5
 S1 = 6
 S2 = 7
 
-ERRORS = {
-    'unexp_end_string': u'Unexpected end of string while parsing Lua string.',
-    'unexp_end_table': u'Unexpected end of table while parsing Lua string.',
-    'mfnumber_minus': u'Malformed number (no digits after initial minus).',
-    'mfnumber_dec_point': u'Malformed number (no digits after decimal point).',
-    'mfnumber_sci': u'Malformed number (bad scientific format).',
-}
+SS1 = 9
+SS2 = 10
+SS3 = 11
+SS4 = 12
 
 class MyParserException(Exception):pass
 class ParseNumberException(Exception):pass
@@ -46,8 +43,8 @@ class PyLuaTblParser:
             return
         self.text = s
         self.removeComments()
-        print "RC:"
-        print self.text
+        # print "RC:"
+        # print self.text
         self.at = 0
         self.ch = ''
         self.depth = 0
@@ -72,6 +69,9 @@ class PyLuaTblParser:
                     elif c == '"' or c == "'":
                         quote = c
                         state = S1
+                        backText += c
+                    elif c == '[':
+                        state = SS1
                         backText += c
                     else:
                         backText += c
@@ -123,6 +123,32 @@ class PyLuaTblParser:
                 elif state == S2:
                     state = S1
                     backText += c
+                elif state == SS1:
+                    if c == '[': # a [[ ]] string
+                        state = SS2
+                        backText += c
+                    elif c == '"' or c == "'":
+                        quote = c
+                        state = S1
+                        backText += c
+                    elif c == '-':
+                        state = M1
+                    else:
+                        state = S0
+                        backText += c
+                elif state == SS2:
+                    if c == ']':
+                        state = SS3
+                        backText += c
+                    else:
+                        backText += c
+                elif state == SS3:
+                    if c == ']':
+                        state = S0
+                        backText += c
+                    else:
+                        state = SS2
+                        backText += c
 
         self.text = backText
 
@@ -133,14 +159,10 @@ class PyLuaTblParser:
         if self.ch == '{':
             return self.object()
         if self.ch == "[":
-            #if self.text[self.at] == '[':
+
             self.take_char()
             self.skip_white()
-            #     return self.string('[')
-            # elif self.text[self.at] == '=':
-            #     return self.string
-            # else:
-            #     self.take_char()
+
         if self.ch in ['"',  "'", '[']:
             return self.string(self.ch)
         elif self.ch.isdigit() or self.ch in '-+.':
