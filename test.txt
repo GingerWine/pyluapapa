@@ -1,0 +1,56 @@
+{
+	["root"] = {
+		--[[
+		    this is a long comment, should be ignored
+		    sd-sd
+		    .}{}!=<>,;
+		--]]
+		-- [[-1211111111111113e+819]], -- a long string
+		-- single line comment
+		["test11111111111111111111"] = 3,
+		["test string"] = 1,
+		["test table"] = {["1str"] = {"array of 1 elm"}},
+		["test mixed table"] = {1, 2, ["1"] = 5, nil},
+		["test empty"] = {},
+		["test array"] = {'a', 1, nil, true, false},
+		["test array of array"] = {{}},
+		["test array of arrays"] = {{}, {}},
+		["test array of objects1"] = {{}, 1, 2, nil},
+		["test array of objects2"] = {{["1"]=1, ["2"]=2}, {["1"]=1, ["2"]=2}},
+		["99"] = -42,
+		["true"] = true,
+		["null"] = nil,
+		["\a\b\n\\'\""] = '"\n\t\r\\\r\n',
+		-- [ [[abcdefg]] ] = [=[helloworld]=],    
+		["NULLLLLLLLLLLLLLLLLLLLLLLL"] = nil,
+		["array with nil"] = {nil,nil,['3'] = 3.14,nil,nil,key = 183};
+		[7] = {
+			["integer"] = 1234567890,
+			["real"] = -9876.543210,
+			e = 0.123456789e-12,
+			E = 1.234567890E+34,  -- some comments
+			zero = 0,
+			one = 1,
+			empty = "",
+			space = " ",
+			quote = "\"",
+			backslash = "\\",
+			abackslash = "\\\'\'\\",
+			ctrls = "\b\f\n\r\t",
+			slash = "/ & \\/",
+			alpha = "abcdefghijklmnopqrstuvwxyz",
+			ALPHA = "ABCD",
+			digit = "01234'56789",
+			["special"] = "1~!@#$%^&*()_+-=[]{}|;:\',./<>?",
+			array = {nil,nil},
+			["comment"] = "// /* <!-- --",
+			["# -- --> */"] = " ",
+			[" s p a c e d "] = {1,2,3
+			,
+			4 , 5     ,     6        ,  7     ,     },
+			["luatext"] = "{123}"
+		},
+		['/\\"\n\r\t`1~!@#$%^&*()_+-=[]{}|;:\',./<>?'] = "test",
+		[1.10] = 3,
+	}
+}
