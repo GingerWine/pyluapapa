@@ -143,7 +143,7 @@ class PyLuaTblParser:
         if not self.ch:
             return
         if self.ch == '{':
-            return self.object()
+            return self.my_object()
         if self.ch == "[":
             self.take_char()
             self.skip_white() # in square brackets, there may be BLANK characters
@@ -235,6 +235,71 @@ class PyLuaTblParser:
                     else:
                         print "Error position : " + str(self.at) + ' ' + self.text[self.at-20:self.at-1]
                         raise MyParserException
+
+    def my_object(self):
+        myLi = []
+        myDi = {}
+        keyS = None
+        self.take_char()
+        self.skip_white()
+        if self.ch == '}': # Empty table
+            self.take_char()
+            return []
+        while self.ch is not None:
+            if self.ch == '{': # New table, must be a list item here
+                myLi.append(self.my_object())
+                continue
+            elif self.ch == '}': # end of this object.
+                self.take_char()
+                if keyS is not None: # end with '}' without "'"
+                    myLi.append(keyS) # must be a list item
+                if len(myDi) == 0: # if there is no A = B, myDi is empty, return list
+                    return myLi
+                elif len(myLi) == 0: # else, return myDi.
+                    myDi = {k:myDi[k] for k in myDi.keys() if myDi[k] is not None} # remove those None value.
+                    return myDi
+                else: # merge dict and lst into one tbl
+                    tblTemp = {x+1:myLi[x] for x in xrange(len(myLi))}
+                    for k in myDi.keys():
+                        if (k not in tblTemp.keys()) and (myDi[k] is not None):
+                            tblTemp[k] = myDi[k]
+                    myDi = {k:tblTemp[k] for k in tblTemp.keys() if tblTemp[k] is not None}
+                    return myDi
+            #else: # normal item
+            elif self.ch in ";,": # one item finished
+                self.take_char()
+                self.skip_white()
+                continue
+            else:
+                keyS = self.parse()
+                self.skip_white()
+                if self.ch == ']':
+                    self.take_char()
+                    self.skip_white()
+                ch = self.ch
+                if ch in ",;}": # list item
+                    if type(keyS) is tuple:
+                        keyS = None
+                    myLi.append(keyS)
+                    keyS = None
+                    if ch in ",;":
+                        self.take_char()
+                        self.skip_white()
+                elif ch == '=': # dict key
+                    if type(keyS) is tuple:
+                        keyS = keyS[0]
+                    self.take_char()
+                    self.skip_white()
+                    myDi[keyS] = self.parse()
+                    keyS = None
+                    self.skip_white()
+                else:
+                    # print "Error position : " + str(self.at) + ' ' + self.text[self.at-20:self.at-1]
+                    raise MyParserException
+
+
+
+
 
     def string(self, quote):
         s = ''
