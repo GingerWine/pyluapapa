@@ -170,72 +170,6 @@ class PyLuaTblParser:
             self.ch = None
             return False
 
-    def object(self):
-        """
-        an object is a dict or a list.
-        :return:
-        """
-        myDi = {}
-        myLi = []
-        keyS = None # a key , maybe a list item
-        self.take_char()
-        self.skip_white()
-        if self.ch and self.ch == '}': # exit, only when table is empty
-            self.take_char()
-            return myLi # so a list is proper rather than a dict
-        else:
-            while self.ch:
-                self.skip_white()
-                if self.ch == '{':
-                    myLi.append(self.parse())
-                    continue
-                elif self.ch == '}':
-                    self.take_char()
-                    if keyS is not None: # end with '}' without "'"
-                        myLi.append(keyS) # must be a list item
-                    if len(myDi) == 0: # if there is no A = B, myDi is empty, return list
-                        return myLi
-                    elif len(myLi) == 0: # else, return myDi.
-                        myDi = {k:myDi[k] for k in myDi.keys() if myDi[k] is not None} # remove those None value.
-                        return myDi
-                    else: # merge dict and lst into one tbl
-                        tblTemp = {x+1:myLi[x] for x in xrange(len(myLi))}
-                        for k in myDi.keys():
-                            if (k not in tblTemp.keys()) and (myDi[k] is not None):
-                                tblTemp[k] = myDi[k]
-                        myDi = {k:tblTemp[k] for k in tblTemp.keys() if tblTemp[k] is not None}
-                        return myDi
-                else: # not an object
-                    keySIsWord = False
-                    if self.ch in (',', ';'):
-                        self.take_char()
-                        continue
-                    else:
-                        keyS = self.parse() # Now key is a string or a number
-                        if type(keyS) is tuple:
-                            keyS = keyS[0]
-                            keySIsWord = True
-                        if self.ch == ']':
-                            self.take_char()
-                    self.skip_white()
-                    ch = self.ch
-                    if ch in ('=', ',', '}', ';'):
-                        if ch in ('=', ',', ';'):
-                            self.take_char()
-                        self.skip_white()
-                        if ch == '=':
-                            myDi[keyS] = self.parse()
-                            keyS = None
-                        else: # is "," or "}"
-                            if keySIsWord:
-                                myLi.append(None)
-                            else:
-                                myLi.append(keyS)
-                            keyS = None
-                    else:
-                        print "Error position : " + str(self.at) + ' ' + self.text[self.at-20:self.at-1]
-                        raise MyParserException
-
     def my_object(self):
         myLi = []
         myDi = {}
@@ -294,7 +228,6 @@ class PyLuaTblParser:
                     keyS = None
                     self.skip_white()
                 else:
-                    # print "Error position : " + str(self.at) + ' ' + self.text[self.at-20:self.at-1]
                     raise MyParserException
 
 
