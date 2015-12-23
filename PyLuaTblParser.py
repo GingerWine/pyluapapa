@@ -1,9 +1,10 @@
 # coding=utf-8
-# ginger
+# Author: ginger
 # - -
 # 声明：本代码的解析过程参考了开源项目https://github.com/SirAnthony/slpp
 
 
+# State names below. For remove comments
 S0 = 0
 M1 = 1
 M2 = 2
@@ -33,24 +34,9 @@ class PyLuaTblParser:
         self.ch = ''
         self.at = 0
         self.len = 0
-        self.depth = 0
         self.result = {}
         self.lf = '\n'
         self.tab = '\t'
-
-    def load(self, s):
-        if not s or type(s) is not str:
-            return
-        self.text = s
-        self.removeComments()
-        # print "RC:"
-        # print self.text
-        self.at = 0
-        self.ch = ''
-        self.depth = 0
-        self.len = len(self.text)
-        self.take_char()
-        self.result = self.parse()
 
     def removeComments(self):
         """
@@ -159,17 +145,14 @@ class PyLuaTblParser:
         if self.ch == '{':
             return self.object()
         if self.ch == "[":
-
             self.take_char()
-            self.skip_white()
-
-        if self.ch in ['"',  "'", '[']:
+            self.skip_white() # in square brackets, there may be BLANK characters
+        if self.ch in ['"',  "'", '[']: # TODO: '[['type string is assumed not to be keys, but CAN be.
             return self.string(self.ch)
         elif self.ch.isdigit() or self.ch in '-+.':
-            return self.number2()
+            return self.my_number()
         else:
             return self.word()
-
 
     def skip_white(self):
         while self.ch:
@@ -194,7 +177,7 @@ class PyLuaTblParser:
         """
         myDi = {}
         myLi = []
-        keyS = None
+        keyS = None # a key , maybe a list item
         self.take_char()
         self.skip_white()
         if self.ch and self.ch == '}': # exit, only when table is empty
@@ -252,12 +235,6 @@ class PyLuaTblParser:
                     else:
                         print "Error position : " + str(self.at) + ' ' + self.text[self.at-20:self.at-1]
                         raise MyParserException
-                        # else: # '}', end this obj without ","
-                        #     myLi.append(keyS)
-                        # keyS = None
-
-                    # elif ch is not None and ch not in ['}']: # a word must be followed by = or ,
-                    #     print 'This: ' + ch
 
     def string(self, quote):
         s = ''
@@ -286,37 +263,11 @@ class PyLuaTblParser:
                 else:
                     s += self.ch
 
-    def number(self):
-        n = ''
-        try:
-            if self.ch == '-':
-                n += self.next_digit(ERRORS['mfnumber_minus'])
-            n += self.take_digits()
-            if n == '0' and self.ch in ['x', 'X']:
-                n += self.ch
-                self.take_char()
-                n += self.take_hex()
-            else:
-                if self.ch and self.ch == '.':
-                    n += self.next_digit(ERRORS['mfnumber_dec_point'])
-                    n += self.take_digits()
-                if self.ch and self.ch in ['e', 'E']:
-                    n += self.ch
-                    self.take_char()
-                    if not self.ch or self.ch not in ('+', '-'):
-                        raise MyParserException(ERRORS['mfnumber_sci'])
-                    n += self.next_digit(ERRORS['mfnumber_sci'])
-                    n += self.take_digits()
-        except MyParserException as e:
-            print e
-            return 0
-        try:
-            return int(n, 0) # try to parse into integer with all base.
-        except:
-            pass
-        return float(n)
-
-    def number2(self):
+    def my_number(self):
+        '''
+        eval() is a very useful function to parse numbers
+        :return:
+        '''
         n = ''
         n += self.ch
         while self.take_char():
@@ -329,28 +280,6 @@ class PyLuaTblParser:
             return eval(n)
         except: # yes, raise my own exception. capricious~
             raise ParseNumberException
-
-
-    def next_digit(self, err):
-        n = self.ch
-        self.take_char()
-        if not self.ch or not self.ch.isdigit():
-            raise MyParserException(err)
-        return n
-
-    def take_digits(self):
-        n = ''
-        while self.ch and self.ch.isdigit():
-            n += self.ch
-            self.take_char()
-        return n
-
-    def take_hex(self):
-        n = ''
-        while self.ch and (self.ch in 'ABCDEFabcdef' or self.ch.isdigit()):
-            n += self.ch
-            self.take_char()
-        return n
 
     def word(self):
         s = ''
@@ -370,42 +299,6 @@ class PyLuaTblParser:
                     return None
                 else:
                     return (str(s), True)
-
-    def dump(self):
-        return self.my_encode(self.result, 0)
-
-    def encode(self, obj):
-        s = ''
-        tab = self.tab
-        newline = self.lf
-        tp = type(obj)
-        if tp is str:
-            s += '"%s"' % obj.replace(r'"', r'\"')
-        elif tp in [int, float, long, complex]:
-            s += str(obj)
-        elif tp is bool:
-            s += str(obj).lower()
-        elif tp in [list, tuple, dict]:
-            self.depth += 1
-            if len(obj) == 0 or ( tp is not dict and len(filter(
-                    lambda x:  type(x) in (int,  float,  long) \
-                    or (type(x) is str and len(x) < 10),  obj
-                )) == len(obj) ):
-                newline = tab = ''
-            dp = tab * self.depth
-            s += "%s{%s" % (tab * (self.depth - 2), newline)
-            if tp is dict:
-                s += (',%s' % newline).join(
-                    [self.encode(v) if type(k) is int \
-                        else dp + '%s = %s' % (k, self.encode(v)) \
-                        for k, v in obj.iteritems()
-                    ])
-            else:
-                s += (',%s' % newline).join(
-                    [dp + self.encode(el) for el in obj])
-            self.depth -= 1
-            s += "%s%s}" % (newline, tab * self.depth)
-        return s
 
     def my_encode(self, obj, dep):
         s = ''
@@ -435,30 +328,10 @@ class PyLuaTblParser:
         s = ''
         tp = type(obj)
         if tp is str:
-            #s +=  '"%s"' % obj.replace(r'"', r'\"')
             s +=  '["%s"]' % obj.encode("string_escape").replace(r'"', r'\"')
         elif tp in (int, long, float):
             s += '['+str(obj)+']'
         return s
-
-    def loadLuaTable(self, f):
-        fp = open(f, 'r')
-        if not fp:
-            raise FileException(u'Open file '+ f + u' failed\n')
-        file_str = fp.read()
-        self.load(file_str)
-        fp.close()
-
-
-    def dumpLuaTable(self, f):
-        fp = open(f, 'w')
-        if not fp:
-            raise FileException(u'Open file '+ f + u' failed\n')
-        fp.write(self.dump())
-        fp.close()
-
-    def loadDict(self, d):
-        self.result = self.myLoadDict(d)
 
     def myLoadDict(self, obj):
         if type(obj) in [str, float, int, bool, long]:
@@ -479,10 +352,40 @@ class PyLuaTblParser:
         else:
             raise LoadDictTypeException(u'loadDict type error\n')
 
+    def load(self, s):
+        if not s or type(s) is not str:
+            return
+        self.text = s
+        self.removeComments()
+        self.at = 0
+        self.ch = ''
+        self.len = len(self.text)
+        self.take_char()
+        self.result = self.parse()
+
+    def dump(self):
+        return self.my_encode(self.result, 0)
+
+    def loadLuaTable(self, f):
+        fp = open(f, 'r')
+        if not fp:
+            raise FileException(u'Open file '+ f + u' failed\n')
+        file_str = fp.read()
+        self.load(file_str)
+        fp.close()
+
+    def dumpLuaTable(self, f):
+        fp = open(f, 'w')
+        if not fp:
+            raise FileException(u'Open file '+ f + u' failed\n')
+        fp.write(self.dump())
+        fp.close()
+
+    def loadDict(self, d):
+        self.result = self.myLoadDict(d)
 
     def dumpDict(self):
         return  self.myLoadDict(self.result)
-
 
 
 
@@ -491,32 +394,20 @@ if __name__ == '__main__':
     a2 = PyLuaTblParser()
     a3 = PyLuaTblParser()
 
-    #test_str = '{array = {65,23,5,},dict = {mixed = {43,54.33,false,9,string = "value",},array = {3,6,4,},string = "value",},}'
     f = open('test.txt')
     test_str = f.read()
-    print test_str
     f.close()
 
     a1.load(test_str)
-    print 'a1.dict:'
-    print a1.result
 
-    print 'a1.dump:'
     print a1.dump()
 
     d1 = a1.dumpDict()
-    print 'a1.dumpDict:'
-    print d1
 
     a2.loadDict(d1)
-    print 'loadDict(d1):'
-    print a2.result
 
     a2.dumpLuaTable('f1.txt')
     a3.loadLuaTable('f1.txt')
-    print 'a3.loadLuaTable:'
-    print a3.result
 
     d3 = a3.dumpDict()
-    print 'a3.dumpDict():'
-    print d3
+
